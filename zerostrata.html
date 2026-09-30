@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stratum event-count probabilities</title>
+<style>
+:root{
+  --bg:#F4F6F8; --panel:#FFFFFF; --ink:#1B2430; --muted:#5A6676;
+  --line:#D9DEE5; --acc:#0E7C86; --acc-rgb:14,124,134; --warm:#A8650F;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10151C; --panel:#171E27; --ink:#E7ECF2; --muted:#9AA6B4;
+    --line:#2A3441; --acc:#2FB8C2; --acc-rgb:47,184,194; --warm:#E0A248;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10151C; --panel:#171E27; --ink:#E7ECF2; --muted:#9AA6B4;
+  --line:#2A3441; --acc:#2FB8C2; --acc-rgb:47,184,194; --warm:#E0A248;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:400 16px/1.55 "IBM Plex Sans",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+.wrap{max-width:920px; margin:0 auto; padding:40px 20px 64px}
+h1{font-size:1.7rem; font-weight:700; letter-spacing:-.01em; margin:0 0 6px}
+.sub{color:var(--muted); margin:0 0 28px; max-width:64ch}
+.sub b{color:var(--ink); font-weight:600}
+
+fieldset.dsel{border:0; padding:0; margin:0 0 20px}
+fieldset.dsel legend{font-weight:600; margin-bottom:8px}
+.seg{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.seg button{
+  font:inherit; font-weight:600; color:var(--ink); background:var(--panel);
+  border:1px solid var(--line); border-radius:8px; padding:8px 18px; cursor:pointer;
+}
+.seg button[aria-pressed="true"]{background:var(--acc); border-color:var(--acc); color:#fff}
+.seg .custom{display:flex; align-items:center; gap:6px; color:var(--muted)}
+input[type=number], input[type=text]{
+  font:inherit; color:var(--ink); background:var(--panel);
+  border:1px solid var(--line); border-radius:6px; padding:6px 8px;
+}
+input[type=number]{width:5.5em; font-variant-numeric:tabular-nums}
+input:focus-visible, button:focus-visible{outline:2px solid var(--acc); outline-offset:2px}
+
+.tablebox{background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow-x:auto}
+table{border-collapse:collapse; width:100%; min-width:680px}
+th,td{padding:10px 12px; text-align:right; border-top:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap}
+thead th{border-top:0; color:var(--muted); font-weight:600; font-size:.9rem}
+th:first-child,td:first-child{text-align:left}
+td.name input{width:13em; max-width:40vw; border-color:transparent; background:transparent; padding:4px 6px}
+td.name input:hover,td.name input:focus{border-color:var(--line); background:var(--bg)}
+td.p{position:relative}
+td.p .fill{position:absolute; inset:4px; border-radius:6px; background:rgba(var(--acc-rgb),var(--a,0)); z-index:0}
+td.p span{position:relative; z-index:1}
+td.chk{text-align:center}
+tfoot td{font-weight:600}
+.exp{color:var(--muted)}
+
+.joint{
+  margin-top:18px; padding:14px 16px; border-radius:12px;
+  background:var(--panel); border:1px solid var(--line);
+  display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline;
+}
+.joint .val{font-size:1.35rem; font-weight:700; color:var(--warm); font-variant-numeric:tabular-nums}
+.joint .desc{color:var(--muted)}
+.err{color:#B3261E; font-weight:600; margin:12px 2px}
+.note{color:var(--muted); font-size:.9rem; margin-top:22px; max-width:72ch}
+@media (max-width:560px){ .wrap{padding:28px 14px 48px} h1{font-size:1.4rem} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Stratum event-count probabilities</h1>
+  <p class="sub">If <b><span id="dLabel">44</span> events</b> occur among <b><span id="nLabel">582</span> randomized subjects</b> and every subject is equally likely to be one of them, the event count in a stratum of size n is hypergeometric. Edit stratum sizes in the table; probabilities update as you type.</p>
+
+  <fieldset class="dsel">
+    <legend>Total events at the analysis cut</legend>
+    <div class="seg" id="seg">
+      <button type="button" data-d="44"  aria-pressed="true">44</button>
+      <button type="button" data-d="87"  aria-pressed="false">87</button>
+      <button type="button" data-d="131" aria-pressed="false">131</button>
+      <button type="button" data-d="174" aria-pressed="false">174</button>
+      <label class="custom">custom <input type="number" id="dCustom" min="0" step="1" placeholder="e.g. 60"></label>
+    </div>
+  </fieldset>
+
+  <div class="tablebox">
+    <table id="tbl" aria-describedby="jointOut">
+      <thead>
+        <tr>
+          <th>Stratum</th><th>n</th><th class="exp">E[events]</th>
+          <th>P(0)</th><th>P(1)</th><th>P(2)</th><th>P(3)</th>
+          <th class="chk" title="Include in the at-least-one-empty probability">Joint 0-event</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+      <tfoot>
+        <tr><td>Total</td><td id="totN">582</td><td class="exp" id="totE"></td><td colspan="5"></td></tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <div class="joint">
+    <span class="desc">P(at least one checked stratum has 0 events)</span>
+    <span class="val" id="jointOut">–</span>
+    <span class="desc" id="jointDetail"></span>
+  </div>
+  <p class="err" id="err" hidden></p>
+
+  <p class="note">Model: multivariate hypergeometric — the D events are treated as a simple random sample of the N subjects, ignoring treatment effect, differential stratum hazards, and censoring patterns. Under a real treatment effect the two arms are not exchangeable, so read these as design-stage approximations. P(0) for a single stratum is C(N−n, D)⁄C(N, D); the "at least one empty" probability uses inclusion–exclusion over subsets of the checked strata — stratum counts are dependent, so it is not 1 − Π(1 − P₀).</p>
+</div>
+
+<script>
+"use strict";
+const DEFAULTS = [
+  ["p.V50M-EO / PADO-0-10", 15, true ],
+  ["p.V50M-EO / PADO-older", 24, true ],
+  ["p.V142I / PADO-0-10",   100, false],
+  ["p.V142I / PADO-older",   24, true ],
+  ["Other / PADO-0-10",     284, false],
+  ["Other / PADO-older",    135, false]
+];
+let D = 44;
+
+/* ---------- math ---------- */
+function lgamma(x){
+  const c=[676.5203681218851,-1259.1392167224028,771.32342877765313,
+           -176.61502916214059,12.507343278686905,-0.13857109526572012,
+           9.9843695780195716e-6,1.5056327351493116e-7];
+  if(x<0.5) return Math.log(Math.PI/Math.sin(Math.PI*x))-lgamma(1-x);
+  x-=1; let a=0.99999999999980993; const t=x+7.5;
+  for(let i=0;i<8;i++) a+=c[i]/(x+i+1);
+  return 0.5*Math.log(2*Math.PI)+(x+0.5)*Math.log(t)-t+Math.log(a);
+}
+const lchoose=(n,k)=> (k<0||k>n||n<0)? -Infinity : lgamma(n+1)-lgamma(k+1)-lgamma(n-k+1);
+function hyperP(N,K,Dv,k){
+  if(k<0||k>K||k>Dv||Dv-k>N-K) return 0;
+  return Math.exp(lchoose(K,k)+lchoose(N-K,Dv-k)-lchoose(N,Dv));
+}
+
+/* ---------- formatting ---------- */
+function fmt(p){
+  if(p===0) return "0%";
+  if(p>=0.0995) return (100*p).toFixed(1)+"%";
+  if(p>=0.00995) return (100*p).toFixed(2)+"%";
+  if(p>=0.0000995) return (100*p).toFixed(3)+"%";
+  return (100*p).toExponential(1)+"%";
+}
+
+/* ---------- build rows ---------- */
+const rowsEl=document.getElementById("rows");
+DEFAULTS.forEach((r,i)=>{
+  const tr=document.createElement("tr");
+  tr.innerHTML=
+    `<td class="name"><input type="text" value="${r[0]}" aria-label="Stratum ${i+1} name"></td>`+
+    `<td><input type="number" class="nin" min="0" step="1" value="${r[1]}" aria-label="Stratum ${i+1} size"></td>`+
+    `<td class="exp ecell"></td>`+
+    `<td class="p"><i class="fill"></i><span></span></td>`.repeat(4).replace(/<i/g,'<i')+
+    `<td class="chk"><input type="checkbox" class="jchk" ${r[2]?"checked":""} aria-label="Include stratum ${i+1} in joint probability"></td>`;
+  rowsEl.appendChild(tr);
+});
+
+/* ---------- recompute ---------- */
+function recalc(){
+  const trs=[...rowsEl.querySelectorAll("tr")];
+  const ns=trs.map(tr=>Math.max(0, Math.floor(+tr.querySelector(".nin").value||0)));
+  const N=ns.reduce((a,b)=>a+b,0);
+  document.getElementById("totN").textContent=N;
+  document.getElementById("nLabel").textContent=N;
+  document.getElementById("dLabel").textContent=D;
+  const err=document.getElementById("err");
+  if(D>N){ err.textContent=`Total events (${D}) exceeds total sample size (${N}).`; err.hidden=false; }
+  else err.hidden=true;
+
+  document.getElementById("totE").textContent = N? "D = "+D : "";
+  trs.forEach((tr,i)=>{
+    const n=ns[i];
+    tr.querySelector(".ecell").textContent = N? (n*D/N).toFixed(1) : "–";
+    const cells=tr.querySelectorAll("td.p");
+    for(let k=0;k<4;k++){
+      const p=(N&&D<=N)? hyperP(N,n,D,k):0;
+      cells[k].querySelector("span").textContent=fmt(p);
+      cells[k].querySelector(".fill").style.setProperty("--a",(0.55*p).toFixed(3));
+    }
+  });
+
+  /* P(at least one checked stratum has 0 events) via inclusion-exclusion */
+  const sizes=trs.filter(tr=>tr.querySelector(".jchk").checked)
+                 .map(tr=>Math.max(0,Math.floor(+tr.querySelector(".nin").value||0)));
+  const m=sizes.length;
+  const out=document.getElementById("jointOut"), det=document.getElementById("jointDetail");
+  if(m===0){ out.textContent="–"; det.textContent="check at least one stratum"; }
+  else if(!N||D>N){ out.textContent="–"; det.textContent=""; }
+  else{
+    let pj=0;
+    for(let mask=1; mask<(1<<m); mask++){
+      let S=0,bits=0;
+      for(let i=0;i<m;i++) if(mask&(1<<i)){ S+=sizes[i]; bits++; }
+      const p=(D>N-S)?0:Math.exp(lchoose(N-S,D)-lchoose(N,D));
+      pj+=(bits%2? p : -p);
+    }
+    pj=Math.min(1,Math.max(0,pj));
+    out.textContent=fmt(pj);
+    det.textContent=`${m} strat${m>1?"a":"um"} checked`;
+  }
+}
+
+/* ---------- wiring ---------- */
+document.getElementById("seg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  D=+b.dataset.d;
+  document.querySelectorAll("#seg button").forEach(x=>x.setAttribute("aria-pressed", x===b?"true":"false"));
+  document.getElementById("dCustom").value="";
+  recalc();
+});
+document.getElementById("dCustom").addEventListener("input",e=>{
+  const v=Math.floor(+e.target.value);
+  if(v>0){ D=v; document.querySelectorAll("#seg button").forEach(x=>x.setAttribute("aria-pressed","false")); recalc(); }
+});
+rowsEl.addEventListener("input",recalc);
+recalc();
+</script>
+</body>
+</html>
